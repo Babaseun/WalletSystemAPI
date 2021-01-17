@@ -18,7 +18,8 @@ namespace WalletSystem.Services.Data.Services
 
         public TransactionService(ITransactionRepository transactionRepository,
                                   IAccountRepository accountRepository,
-                                  IWalletRepository walletRepository, UserManager<ApplicationUser> userManager)
+                                  IWalletRepository walletRepository,
+                                  UserManager<ApplicationUser> userManager)
         {
             _transactionRepository = transactionRepository;
             _accountRepository = accountRepository;
@@ -30,7 +31,6 @@ namespace WalletSystem.Services.Data.Services
         {
             var response = new Response<Transaction>();
             var accounts = await _accountRepository.FindAll();
-            var wallets = await _walletRepository.FindAll();
 
 
             if (accounts == null)
@@ -73,9 +73,9 @@ namespace WalletSystem.Services.Data.Services
             return response;
 
         }
-        public async Task<Response<Transaction>> Withdraw(TransactionDto model)
+        public async Task<Response<Wallet>> Withdraw(TransactionDto model)
         {
-            var response = new Response<Transaction>();
+            var response = new Response<Wallet>();
             var accounts = await _accountRepository.FindAll();
             var wallets = await _walletRepository.FindAll();
 
@@ -100,6 +100,15 @@ namespace WalletSystem.Services.Data.Services
             }
 
 
+
+            var wallet = await _walletRepository.Find(model.WalletId);
+
+            if (wallet.Balance <= 0)
+            {
+                response.Message = "Insufficient funds";
+                response.Success = false;
+
+            }
             Transaction transaction = new Transaction
             {
                 Amount = model.Amount,
@@ -112,9 +121,13 @@ namespace WalletSystem.Services.Data.Services
 
             await _transactionRepository.Save(transaction);
 
-            response.Message = "Transaction was created successfully and its waiting for approval";
+            wallet.Balance -= model.Amount;
+
+            await _walletRepository.Update(wallet);
+
+            response.Message = "Transaction was successful";
             response.Success = true;
-            response.Data = transaction;
+            response.Data = wallet;
 
             return response;
 
@@ -124,9 +137,15 @@ namespace WalletSystem.Services.Data.Services
         {
 
             var response = new Response<Wallet>();
-            var isAdmin = await CheckIfRoleIsAdmin(adminId);
+            var user = await _userManager.FindByIdAsync(model.OwnerId);
+            var roleIsNoob = await _userManager.IsInRoleAsync(user, "Noob");
 
-            if (!isAdmin.Success) return isAdmin;
+            if (roleIsNoob)
+            {
+                var isAdmin = await CheckIfRoleIsAdmin(adminId);
+
+                if (!isAdmin.Success) return isAdmin;
+            }
 
             var transaction = await _transactionRepository.Find(model.TransactionId);
 
@@ -142,8 +161,7 @@ namespace WalletSystem.Services.Data.Services
 
             var wallet = await _walletRepository.Find(transaction.WalletId);
 
-            HttpClientService client = new HttpClientService();
-            var currencies = await client.LoadCurrencies();
+            var currencies = await HttpClientService.LoadCurrencies();
 
 
             var rate = currencies[wallet.Currency];
@@ -172,9 +190,9 @@ namespace WalletSystem.Services.Data.Services
 
         }
 
-        public async Task<Response<Dictionary<Wallet, Wallet>>> Transfer(TransferBetweenTwoAccountsDto model)
+        public async Task<Response<IEnumerable<Wallet>>> Transfer(TransferBetweenTwoAccountsDto model)
         {
-            var response = new Response<Dictionary<Wallet, Wallet>>();
+            var response = new Response<IEnumerable<Wallet>>();
 
             var walletTo = await _walletRepository.Find(model.WalletIdOfAccountTo);
             var walletFrom = await _walletRepository.Find(model.WalletIdOfAccountFrom);
@@ -208,7 +226,7 @@ namespace WalletSystem.Services.Data.Services
 
             response.Success = true;
             response.Message = "Transfer successful";
-            response.Data = new Dictionary<Wallet, Wallet> { { walletFrom, walletTo } };
+            response.Data = new List<Wallet> { walletFrom, walletTo };
             return response;
 
         }

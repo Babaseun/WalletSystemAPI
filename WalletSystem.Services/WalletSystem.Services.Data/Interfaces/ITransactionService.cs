@@ -8,9 +8,9 @@ namespace WalletSystem.Services.Data.Interfaces
     public interface ITransactionService
     {
         Task<Response<Transaction>> Deposit(TransactionDto model);
-        Task<Response<Transaction>> Withdraw(TransactionDto model);
+        Task<Response<Wallet>> Withdraw(TransactionDto model);
         Task<Response<Wallet>> Approve(UpdateTransactionDto model, string adminId);
-        Task<Response<Dictionary<Wallet, Wallet>>> Transfer(TransferBetweenTwoAccountsDto model);
+        Task<Response<IEnumerable<Wallet>>> Transfer(TransferBetweenTwoAccountsDto model);
 
 
     }

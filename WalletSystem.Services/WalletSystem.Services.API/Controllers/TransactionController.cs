@@ -21,7 +21,8 @@ namespace WalletSystem.Services.API.Controllers
 
         public TransactionController(ITransactionRepository transactionRepository,
                                      IAccountRepository accountRepository,
-                                     IWalletRepository walletRepository, UserManager<ApplicationUser> userManager)
+                                     IWalletRepository walletRepository,
+                                     UserManager<ApplicationUser> userManager)
         {
             _transactionRepository = transactionRepository;
             _accountRepository = accountRepository;
@@ -29,8 +30,8 @@ namespace WalletSystem.Services.API.Controllers
             _userManager = userManager;
         }
 
-        [HttpPost]
-        public async Task<IActionResult> CreateTransaction(TransactionDto model)
+        [HttpPost("deposit")]
+        public async Task<IActionResult> DepositTransaction(TransactionDto model)
         {
             if (ModelState.IsValid)
             {
@@ -84,6 +85,24 @@ namespace WalletSystem.Services.API.Controllers
             }
 
             return BadRequest();
+        }
+        [HttpPost("withdraw")]
+        public async Task<IActionResult> WithdrawalTransaction(TransactionDto model)
+        {
+            if (ModelState.IsValid)
+            {
+                var transaction = new TransactionService(_transactionRepository, _accountRepository, _walletRepository, _userManager);
+                var response = await transaction.Withdraw(model);
+
+                if (!response.Success) return BadRequest(response);
+
+                return Ok(response);
+
+            }
+
+            return BadRequest();
+
+
         }
     }
 }

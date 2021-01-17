@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using System;
 using System.Threading.Tasks;
 using WalletSystem.Services.Data.Interfaces;
 using WalletSystem.Services.Data.Services;
@@ -24,7 +25,9 @@ namespace WalletSystem.Services.API.Controllers
 
         public UserController(UserManager<ApplicationUser> userManager,
                               SignInManager<ApplicationUser> signInManager,
-                              ILogger<ApplicationUser> logger, IAccountService accountService, IConfiguration configuration)
+                              ILogger<ApplicationUser> logger,
+                              IAccountService accountService,
+                              IConfiguration configuration)
         {
             _userManager = userManager;
             _signInManager = signInManager;
@@ -43,44 +46,59 @@ namespace WalletSystem.Services.API.Controllers
                 if (model.Role != "Noob" && model.Role != "Elite" && model.Role != "Admin")
                     return BadRequest(new { message = "User can either be an Admin , a Noob or an Elite" });
 
-                var currencies = new HttpClientService();
-                var currency = await currencies.LoadCurrencies();
-                if (!currency.ContainsKey(model.Currency)) return BadRequest(new { message = "Please select a known currency" });
-                var user = new ApplicationUser { Email = model.Email, UserName = model.Email };
-
-                var result = await _userManager.CreateAsync(user, model.Password);
-
-                if (result.Succeeded)
+                try
                 {
-                    _logger.LogInformation("User created a new account with password.");
+                    var currency = await HttpClientService.LoadCurrencies();
 
+                    if (!currency.ContainsKey(model.Currency))
+                        return BadRequest(new { message = "Please select a known currency" });
 
-                    await _userManager.AddToRoleAsync(user, model.Role);
+                    var user = new ApplicationUser { Email = model.Email, UserName = model.Email };
 
+                    var result = await _userManager.CreateAsync(user, model.Password);
 
-                    if (model.Role == "Noob" || model.Role == "Elite")
+                    if (result.Succeeded)
                     {
+                        _logger.LogInformation("User created a new account with password.");
 
 
-                        var account = await _accountService.CreateAccount(user, model.Currency);
+                        await _userManager.AddToRoleAsync(user, model.Role);
 
-                        if (account.Success)
+
+                        if (model.Role == "Noob" || model.Role == "Elite")
                         {
-                            _logger.LogInformation("User created a new wallet.");
 
-                            Helper helper = new Helper(_configuration);
-                            var token = helper.GenerateToken(user.Id, model.Role);
 
-                            return Created("", new { user = user.AsDto(), account, token });
+                            var account = await _accountService.CreateAccount(user, model.Currency);
+
+                            if (account.Success)
+                            {
+                                _logger.LogInformation("User created a new wallet.");
+
+                                var helper = new Helper(_configuration);
+                                var token = helper.GenerateToken(user.Id, model.Role);
+
+                                return Created("", new { user = user.AsDto(), account, token });
+                            }
+
+                            return BadRequest(new { message = "Failed to create wallet" });
                         }
 
-                        return BadRequest(new { message = "Failed to create wallet" });
+                        return Created("", new { user = user.AsDto() });
                     }
 
-                    return Created("", new { user = user.AsDto() });
+                    return BadRequest(new { message = result.Errors });
+
+
+
+                }
+                catch (Exception e)
+                {
+                    _logger.LogInformation("User created a new wallet.");
+                    return BadRequest(new { message = "Bad Request", error = e.Message });
+
                 }
 
-                return BadRequest(new { message = result.Errors });
 
             }
             return BadRequest(new { message = "Bad Request", ModelState });

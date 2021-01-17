@@ -46,20 +46,24 @@ namespace WalletSystem.Services.API
             services.AddScoped<ITransactionRepository, TransactionRepository>();
             services.AddSwaggerGen(c =>
             {
-                c.SwaggerDoc("v1", new OpenApiInfo { Title = "WalletSystem.Services.API", Version = "v1" });
+                c.SwaggerDoc("v1", new OpenApiInfo { Title = "WalletSystemAPI", Version = "v1" });
             });
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
-        public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
+        public void Configure(IApplicationBuilder app, IWebHostEnvironment env,
+                              UserManager<ApplicationUser> userManager,
+                              RoleManager<IdentityRole> roleManager,
+                              AppDbContext ctx, IAccountRepository accountRepository)
         {
             if (env.IsDevelopment())
             {
                 app.UseDeveloperExceptionPage();
                 app.UseSwagger();
-                app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "WalletSystem.Services.API v1"));
+                app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "WalletSystemAPI v1"));
             }
 
+            Preseeder.Seeder(ctx, roleManager, userManager, accountRepository).Wait();
             app.UseHttpsRedirection();
 
             app.UseRouting();
