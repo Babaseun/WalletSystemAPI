@@ -1,11 +1,11 @@
-﻿using System;
+﻿using Microsoft.AspNetCore.Identity;
+using System;
 using System.Threading.Tasks;
-using Microsoft.AspNetCore.Identity;
 using WalletSystem.Services.Data.Interfaces;
 using WalletSystem.Services.DTOs;
 using WalletSystem.Services.Models;
 
-namespace WalletSystem.Services.Data
+namespace WalletSystem.Services.Data.Services
 {
     public class WalletServices : IWalletService
     {

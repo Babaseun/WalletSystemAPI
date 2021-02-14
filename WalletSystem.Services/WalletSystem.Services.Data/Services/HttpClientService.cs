@@ -10,8 +10,6 @@ namespace WalletSystem.Services.Data.Services
     {
         public static async Task<Dictionary<string, decimal>> LoadCurrencies()
         {
-
-
             var client = new HttpClient();
             const string url = "http://data.fixer.io/api/latest?access_key=3073cb802b92bc621d2c3208dac74f6b";
 
@@ -22,7 +20,6 @@ namespace WalletSystem.Services.Data.Services
 
 
             return myDeserializedClass.Rates;
-
         }
     }
 

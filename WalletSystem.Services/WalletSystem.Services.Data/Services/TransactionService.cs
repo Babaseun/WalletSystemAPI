@@ -1,5 +1,4 @@
-﻿using Microsoft.AspNetCore.Identity;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -14,20 +13,17 @@ namespace WalletSystem.Services.Data.Services
         private readonly ITransactionRepository _transactionRepository;
         private readonly IAccountRepository _accountRepository;
         private readonly IWalletRepository _walletRepository;
-        private readonly UserManager<ApplicationUser> _userManager;
-
         public TransactionService(ITransactionRepository transactionRepository,
                                   IAccountRepository accountRepository,
-                                  IWalletRepository walletRepository,
-                                  UserManager<ApplicationUser> userManager)
+                                  IWalletRepository walletRepository)
         {
             _transactionRepository = transactionRepository;
             _accountRepository = accountRepository;
             _walletRepository = walletRepository;
-            _userManager = userManager;
+
         }
 
-        public async Task<Response<Transaction>> Deposit(TransactionDto model)
+        public async Task<Response<Transaction>> Deposit(TransactionDto model, string userId)
         {
             var response = new Response<Transaction>();
             var accounts = await _accountRepository.FindAll();
@@ -41,7 +37,7 @@ namespace WalletSystem.Services.Data.Services
                 return response;
             }
 
-            var selectedAccount = accounts.FirstOrDefault(a => a.ApplicationUserId == model.OwnerId);
+            var selectedAccount = accounts.FirstOrDefault(a => a.ApplicationUserId == userId);
 
 
             if (selectedAccount == null)
@@ -137,15 +133,7 @@ namespace WalletSystem.Services.Data.Services
         {
 
             var response = new Response<Wallet>();
-            var user = await _userManager.FindByIdAsync(model.OwnerId);
-            var roleIsNoob = await _userManager.IsInRoleAsync(user, "Noob");
 
-            if (roleIsNoob)
-            {
-                var isAdmin = await CheckIfRoleIsAdmin(adminId);
-
-                if (!isAdmin.Success) return isAdmin;
-            }
 
             var transaction = await _transactionRepository.Find(model.TransactionId);
 
@@ -227,32 +215,6 @@ namespace WalletSystem.Services.Data.Services
             response.Success = true;
             response.Message = "Transfer successful";
             response.Data = new List<Wallet> { walletFrom, walletTo };
-            return response;
-
-        }
-
-        private async Task<Response<Wallet>> CheckIfRoleIsAdmin(string adminId)
-        {
-            var isAdmin = await _userManager.FindByIdAsync(adminId);
-            var response = new Response<Wallet>();
-            if (isAdmin == null)
-            {
-                response.Success = false;
-                response.Message = "Admin is not registered";
-                return response;
-
-            }
-
-            var role = await _userManager.IsInRoleAsync(isAdmin, "Admin");
-
-            if (role == false)
-            {
-                response.Success = false;
-                response.Message = "You are not authorized to perform these function";
-                return response;
-            }
-
-            response.Success = true;
             return response;
 
         }

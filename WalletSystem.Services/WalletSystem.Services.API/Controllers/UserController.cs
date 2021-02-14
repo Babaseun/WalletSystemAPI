@@ -3,6 +3,8 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using System;
+using System.Linq;
+using System.Security.Claims;
 using System.Threading.Tasks;
 using WalletSystem.Services.Data.Interfaces;
 using WalletSystem.Services.Data.Services;
@@ -40,68 +42,46 @@ namespace WalletSystem.Services.API.Controllers
         [HttpPost("register")]
         public async Task<IActionResult> Register(RegisterDto model)
         {
-            if (ModelState.IsValid)
+            if (!ModelState.IsValid) return BadRequest(new { message = "Bad Request", ModelState });
+
+            if (model.Role != "Noob" && model.Role != "Elite" && model.Role != "Admin")
+                return BadRequest(new { message = "User can either be an Admin , a Noob or an Elite" });
+
+            try
             {
+                var currency = await HttpClientService.LoadCurrencies();
 
-                if (model.Role != "Noob" && model.Role != "Elite" && model.Role != "Admin")
-                    return BadRequest(new { message = "User can either be an Admin , a Noob or an Elite" });
+                if (!currency.ContainsKey(model.Currency))
+                    return BadRequest(new { message = "Please select a known currency" });
 
-                try
-                {
-                    var currency = await HttpClientService.LoadCurrencies();
+                var user = new ApplicationUser { Email = model.Email, UserName = model.Email };
 
-                    if (!currency.ContainsKey(model.Currency))
-                        return BadRequest(new { message = "Please select a known currency" });
+                var result = await _userManager.CreateAsync(user, model.Password);
 
-                    var user = new ApplicationUser { Email = model.Email, UserName = model.Email };
-
-                    var result = await _userManager.CreateAsync(user, model.Password);
-
-                    if (result.Succeeded)
-                    {
-                        _logger.LogInformation("User created a new account with password.");
+                if (!result.Succeeded) return BadRequest(new { message = result.Errors });
+                _logger.LogInformation("User created a new account with password.");
 
 
-                        await _userManager.AddToRoleAsync(user, model.Role);
+                await _userManager.AddToRoleAsync(user, model.Role);
 
 
-                        if (model.Role == "Noob" || model.Role == "Elite")
-                        {
+                if (model.Role != "Noob" && model.Role != "Elite") return Created("", new { user = user.AsDto() });
+                var account = await _accountService.CreateAccount(user, model.Currency);
 
-
-                            var account = await _accountService.CreateAccount(user, model.Currency);
-
-                            if (account.Success)
-                            {
-                                _logger.LogInformation("User created a new wallet.");
-
-                                var helper = new Helper(_configuration);
-                                var token = helper.GenerateToken(user.Id, model.Role);
-
-                                return Created("", new { user = user.AsDto(), account, token });
-                            }
-
-                            return BadRequest(new { message = "Failed to create wallet" });
-                        }
-
-                        return Created("", new { user = user.AsDto() });
-                    }
-
-                    return BadRequest(new { message = result.Errors });
+                if (!account.Success) return BadRequest(new { message = "Failed to create wallet" });
+                _logger.LogInformation("User created a new wallet.");
 
 
 
-                }
-                catch (Exception e)
-                {
-                    _logger.LogInformation("User created a new wallet.");
-                    return BadRequest(new { message = "Bad Request", error = e.Message });
-
-                }
-
+                return Created("", new { user = user.AsDto(), account });
 
             }
-            return BadRequest(new { message = "Bad Request", ModelState });
+            catch (Exception e)
+            {
+                _logger.LogInformation("User created a new wallet.");
+                return BadRequest(new { message = "Bad Request", error = e.Message });
+
+            }
 
         }
 
@@ -109,24 +89,27 @@ namespace WalletSystem.Services.API.Controllers
         [HttpPost("login")]
         public async Task<IActionResult> Login(LoginDto model)
         {
-
-
-
             if (ModelState.IsValid)
             {
                 var user = await _userManager.FindByEmailAsync(model.Email);
 
-                if (user == null) return BadRequest(new { message = "User not registered" });
+                if (user is null) return BadRequest(new { message = "Invalid login credentials" });
 
                 var result = await _signInManager.CheckPasswordSignInAsync(user, model.Password, false);
 
                 if (result.Succeeded)
                 {
+                    var userRoles = await _userManager.GetRolesAsync(user);
 
+                    var authClaims = userRoles.Select(userRole => new Claim(ClaimTypes.Role, userRole)).ToList();
+
+                    authClaims.Add(new Claim("Id", user.Id));
+
+                    var helper = new Helper(_configuration);
+                    var token = helper.GenerateToken(authClaims);
 
                     _logger.LogInformation("User logged in.");
-
-                    return Ok(new { message = "User logged in." });
+                    return Ok(new { token });
                 }
 
             }
@@ -134,8 +117,6 @@ namespace WalletSystem.Services.API.Controllers
             ModelState.AddModelError(string.Empty, "Invalid login attempt.");
 
             return BadRequest(new { message = "User not logged in" });
-
-
         }
     }
 }

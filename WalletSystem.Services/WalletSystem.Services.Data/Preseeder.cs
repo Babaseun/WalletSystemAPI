@@ -8,14 +8,14 @@ using WalletSystem.Services.Models;
 
 namespace WalletSystem.Services.Data
 {
-    public static class Preseeder
+    public static class PreSeeder
     {
         public static async Task Seeder(AppDbContext ctx,
                                         RoleManager<IdentityRole> roleManager,
                                         UserManager<ApplicationUser> userManager,
                                         IAccountRepository accountRepository)
         {
-            ctx.Database.EnsureCreated();
+            await ctx.Database.EnsureCreatedAsync();
 
             if (!roleManager.Roles.Any())
             {

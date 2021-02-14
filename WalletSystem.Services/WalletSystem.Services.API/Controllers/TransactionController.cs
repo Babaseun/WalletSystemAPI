@@ -1,4 +1,6 @@
-﻿using Microsoft.AspNetCore.Identity;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Newtonsoft.Json;
 using System.Threading.Tasks;
@@ -10,6 +12,7 @@ using WalletSystem.Services.Models;
 
 namespace WalletSystem.Services.API.Controllers
 {
+    [Authorize(AuthenticationSchemes = "Bearer")]
     [Route("api/[controller]")]
     [ApiController]
     public class TransactionController : ControllerBase
@@ -18,33 +21,33 @@ namespace WalletSystem.Services.API.Controllers
         private readonly IAccountRepository _accountRepository;
         private readonly IWalletRepository _walletRepository;
         private readonly UserManager<ApplicationUser> _userManager;
+        private readonly IHttpContextAccessor _httpContextAccessor;
 
         public TransactionController(ITransactionRepository transactionRepository,
                                      IAccountRepository accountRepository,
                                      IWalletRepository walletRepository,
-                                     UserManager<ApplicationUser> userManager)
+                                     UserManager<ApplicationUser> userManager,
+                                     IHttpContextAccessor httpContextAccessor)
         {
             _transactionRepository = transactionRepository;
             _accountRepository = accountRepository;
             _walletRepository = walletRepository;
             _userManager = userManager;
+            _httpContextAccessor = httpContextAccessor;
         }
-
+        [Authorize(Roles = "Elite,Noob")]
         [HttpPost("deposit")]
         public async Task<IActionResult> DepositTransaction(TransactionDto model)
         {
-            if (ModelState.IsValid)
-            {
-                var transaction = new TransactionService(_transactionRepository, _accountRepository, _walletRepository, _userManager);
-                var response = await transaction.Deposit(model);
+            if (!ModelState.IsValid) return BadRequest(ModelState);
 
-                if (!response.Success) return BadRequest(response);
+            var transaction = new TransactionService(_transactionRepository, _accountRepository, _walletRepository);
+            var user = new CurrentUserService(_httpContextAccessor);
+            var response = await transaction.Deposit(model, user.UserId);
 
-                return Ok(response);
+            if (!response.Success) return BadRequest(response);
 
-            }
-
-            return BadRequest();
+            return Ok(response);
 
 
         }
@@ -53,7 +56,7 @@ namespace WalletSystem.Services.API.Controllers
         {
             if (ModelState.IsValid)
             {
-                var transaction = new TransactionService(_transactionRepository, _accountRepository, _walletRepository, _userManager);
+                var transaction = new TransactionService(_transactionRepository, _accountRepository, _walletRepository);
                 var response = await transaction.Approve(model, adminId);
 
                 if (!response.Success) return BadRequest(response);
@@ -70,28 +73,24 @@ namespace WalletSystem.Services.API.Controllers
         [HttpPost("transfer-between-accounts")]
         public async Task<IActionResult> TransferBetweenAccounts(TransferBetweenTwoAccountsDto model)
         {
-            if (ModelState.IsValid)
-            {
+            if (!ModelState.IsValid) return BadRequest();
+            var transaction = new TransactionService(_transactionRepository, _accountRepository, _walletRepository);
 
-                var transaction = new TransactionService(_transactionRepository, _accountRepository, _walletRepository, _userManager);
-
-                var response = await transaction.Transfer(model);
-                var toJson = JsonConvert.SerializeObject(response);
+            var response = await transaction.Transfer(model);
+            var toJson = JsonConvert.SerializeObject(response);
 
 
-                if (!response.Success) return BadRequest(toJson);
+            if (!response.Success) return BadRequest(toJson);
 
-                return Ok(toJson);
-            }
+            return Ok(toJson);
 
-            return BadRequest();
         }
         [HttpPost("withdraw")]
         public async Task<IActionResult> WithdrawalTransaction(TransactionDto model)
         {
             if (ModelState.IsValid)
             {
-                var transaction = new TransactionService(_transactionRepository, _accountRepository, _walletRepository, _userManager);
+                var transaction = new TransactionService(_transactionRepository, _accountRepository, _walletRepository);
                 var response = await transaction.Withdraw(model);
 
                 if (!response.Success) return BadRequest(response);
